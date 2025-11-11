@@ -3,9 +3,7 @@ from flask_cors import CORS
 from google import genai
 import os
 
-# 🚨 SUA CHAVE DE API AQUI 🚨
-# Esta chave estará segura no seu servidor Render e não será exposta ao usuário.
-GEMINI_API_KEY = "AIzaSyCVTtjwILegv32mCGP05PntO9wMpB5Gnhc" 
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") 
 
 # Configuração do App Flask
 app = Flask(__name__)
