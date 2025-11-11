@@ -87,7 +87,7 @@
                 <div class="input-group">
                     <label for="image-select">Deve conter ilustrações?</label>
                     <select id="image-select">
-                        <option value="Sim">Sim (Simulação de Imagem)</option>
+                        <option value="Sim">Sim (Geração Real)</option>
                         <option value="Não" selected>Não</option>
                     </select>
                 </div>
@@ -115,8 +115,8 @@
 
 
     <script>
-        // 🚨 MUDE AQUI! SUBSTITUA ESTE ENDEREÇO PELA URL PERMANENTE DO SEU SERVIDOR RENDER 🚨
-        const BACKEND_URL = 'https://SUA_URL_PERMANENTE_DO_RENDER_AQUI'; 
+        // 🚨 URL CORRIGIDA PARA INCLUIR A BARRA FINAL PARA EVITAR ERROS 404 NO FETCH 🚨
+        const BACKEND_URL = 'https://bookai-qgeh.onrender.com/'; 
 
         function goToConfig(synopsis) {
             document.getElementById('main-page').style.display = 'none';
@@ -140,7 +140,6 @@
 
         /**
          * Converte o Markdown/Texto do Gemini em HTML para o PDF.
-         * Simplificação necessária para renderização com html2canvas.
          */
         function parseContentToHtml(markdownText) {
             // Garante que as novas linhas sejam <br>
@@ -154,7 +153,7 @@
             html = html.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
             
             // Substitui a tag de imagem (simulada)
-            html = html.replace(/\[IMAGEM\]/g, '<div style="text-align: center; margin: 20px 0; padding: 15px; border: 1px dashed #999; font-style: italic;">[ILUSTRAÇÃO DA IA - Placeholder]</div>');
+            html = html.replace(/\[IMAGEM\]/g, '<div style="text-align: center; margin: 20px 0; padding: 15px; border: 1px dashed #999; font-style: italic;">[ILUSTRAÇÃO GERADA PELA IA]</div>');
 
             return html;
         }
@@ -187,14 +186,20 @@
             let aiResponseText;
             
             try {
-                // 2. CHAMADA AO BACKEND PYTHON (Render)
+                // 2. CHAMADA AO BACKEND PYTHON (Render) - CORREÇÃO NA URL
                 generateBtn.innerText = "Chamando o Gemini (Texto)...";
                 
-                const response = await fetch(`${BACKEND_URL}/generate_ebook`, {
+                const response = await fetch(`${BACKEND_URL}generate_ebook`, { // REMOVIDO A BARRA INICIAL (/) AQUI
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
+
+                // TRATAMENTO DE ERROS HTTP (404, 500, etc.)
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erro HTTP ${response.status}: ${errorText}`);
+                }
 
                 const data = await response.json();
 
@@ -210,25 +215,30 @@
                     throw new Error("Resposta da IA incompleta. Certifique-se de que o separador '---' foi gerado.");
                 }
                 
-                // Extrai o prompt da capa e o conteúdo
                 const capaPromptLine = parts[0].replace('[CAPA_PROMPT]:', '').trim();
                 let bookContentRaw = parts[1].replace('[CONTEUDO_INICIO]:', '').replace(/\[CONTEUDO_FIM\]/g, '').trim();
                 
-                // Converte o texto da IA para HTML formatado para PDF
                 const bookContentHTML = parseContentToHtml(bookContentRaw);
                 
                 
-                // 4. CHAMADA AO BACKEND PYTHON PARA GERAR A IMAGEM (Simulada)
-                generateBtn.innerText = "Gerando a Capa (Simulação)...";
+                // 4. CHAMADA AO BACKEND PYTHON PARA GERAR A IMAGEM (Real) - CORREÇÃO NA URL
+                generateBtn.innerText = "Gerando a Capa (Imagen)...";
                 
-                const coverResponse = await fetch(`${BACKEND_URL}/generate_cover`, {
+                const coverResponse = await fetch(`${BACKEND_URL}generate_cover`, { // REMOVIDO A BARRA INICIAL (/) AQUI
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ cover_prompt: capaPromptLine })
                 });
 
+                if (!coverResponse.ok) {
+                    const errorText = await coverResponse.text();
+                    throw new Error(`Erro HTTP ${coverResponse.status} na Capa: ${errorText}`);
+                }
+
                 const coverData = await coverResponse.json();
-                const coverImageUrl = coverData.image_url;
+                
+                // coverImageUrl agora contém a string Base64 completa (ex: data:image/jpeg;base64,...)
+                const coverImageUrl = coverData.image_url; 
 
 
                 // 5. MONTAR O HTML PARA GERAÇÃO DO PDF
@@ -246,7 +256,7 @@
                     </div>
                 `;
                 
-                // 6. GERAR O PDF USANDO JSLIBRARIES (Processamento página por página)
+                // 6. GERAR O PDF USANDO JSLIBRARIES
                 generateBtn.innerText = "Finalizando PDF...";
                 
                 const { jsPDF } = window.jspdf;
@@ -258,7 +268,8 @@
                 for (let i = 0; i < pagesToRender.length; i++) {
                     const page = pagesToRender[i];
                     promises.push(
-                        html2canvas(page, { scale: 2 }).then(canvas => {
+                        // Aumentamos o scale para melhor qualidade da imagem do PDF
+                        html2canvas(page, { scale: 3 }).then(canvas => { 
                             const imgData = canvas.toDataURL('image/jpeg', 1.0);
                             const imgProps= pdf.getImageProperties(imgData);
                             const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -286,7 +297,7 @@
 
             } catch (error) {
                 console.error("Erro Crítico:", error);
-                alert("Ocorreu um erro ao gerar o Ebook. Verifique se o backend está rodando no Render e a URL está correta. Detalhes: " + error.message);
+                alert("Ocorreu um erro ao gerar o Ebook. Verifique o console para mais detalhes. Erro: " + error.message);
             } finally {
                 // 9. Restaurar o botão
                 generateBtn.disabled = false;
